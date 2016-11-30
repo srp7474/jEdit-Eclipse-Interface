@@ -56,4 +56,4 @@ UDPMarkerListener   Eclipse plugin
 
   * Drop the plugin folder into the Eclipse plugins folder and restart.  Note that this was developed for Eclipse Luna (4.4)
 
-  * Drop the UDPErrors.jar file into the jEdit jars folder.  This was developed for jEdit5.2
+  * Drop the UDPErrors.jar file into the jEdit jars folder.  This was developed for jEdit5.3
