@@ -28,10 +28,10 @@ The result is that I am able to benefit from the best-of-breed qualities of two 
 
 ####Possible Improvements####
 Time constraints prevent me from doing work to tidy up this package.
-I am willing to assist anybody willing to step up to the plate and tie a bow around it. I can be reached at public@rexcel.com
+I am willing to assist anybody willing to step up to the plate and tie a bow around it. I can be reached at public&#064;rexcel.com
 
 
-####Other Tools in ths Directory####
+####Other Tools in this Directory####
 Thirty+ years ago I started using an Editor called Brief.  It was later emulated under Windows by Multi-Edit.  The feature I used most, besides its save on task switch capability,
 was the use of the Num-Pad + and - keys to copy and Cut respectively. Accompanied by using the INSERT key as the paste function, these key combinations
 enabled single-key Copy/Cut/Paste operations. I find this capability is a must have for any editor I use on an extended basis.
