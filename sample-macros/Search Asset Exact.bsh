@@ -1,0 +1,101 @@
+
+// This is a recorded macro. First, check over the
+// commands to make sure this is what you intended. Then,
+// save this buffer, and the macro should appear in the
+// Macros menu.
+
+import javax.swing.tree.*;
+import javax.swing.Timer;
+
+ac();
+String getIdentifierAtCaret()
+{
+	int pos = textArea.getCaretPosition();
+	String s = new String();
+	for (i = pos; i < textArea.getBufferLength(); i++)
+	{
+		char c = textArea.getText(i, 1).charAt(0);
+		if (Character.isLetterOrDigit(c) || c == '_')
+			s = s + c;
+		else
+			break;
+	}
+	for (i = pos - 1; i >= 0; i--)
+	{
+		char c = textArea.getText(i, 1).charAt(0);
+		if (Character.isLetterOrDigit(c) || c == '_')
+			s = String.valueOf(c) + s;
+		else
+			break;
+	}
+	return s;
+}
+
+void select(JTree tree, DefaultMutableTreeNode node)
+{
+	treePath = new TreePath(node.getPath());
+	//System.err.println(treePath);
+	tree.setSelectionPath(treePath);
+	tree.scrollPathToVisible(treePath);
+}
+
+boolean selectNodeOfLine(JTree tree, DefaultMutableTreeNode node, int line)
+{
+	//System.err.println("Checking node " + node);
+	if (node.getUserObject() instanceof HyperSearchResult)
+	{
+		HyperSearchResult r = (HyperSearchResult) node.getUserObject();
+		if (r.line == line)
+		{
+			//System.err.println("Found");
+			select(tree, node);
+			return true;
+		}
+	}
+	for (TreeNode child: node.children())
+	{
+		DefaultMutableTreeNode t = (DefaultMutableTreeNode) child;
+		if (selectNodeOfLine(tree, t, line))
+			return true;
+	}
+	return false;
+}
+
+int position = textArea.getCaretPosition();
+Selection[] selection = textArea.getSelection();
+String s = null;
+if (selection == null || selection.length == 0) {
+	s = getIdentifierAtCaret();
+	if (s == null || s.length() == 0)
+	{
+		s = Macros.input(view, "Enter text to search for:");
+		if (s == null)
+			return;
+	}
+} else {
+	s = textArea.getSelectedText(selection[0]);
+}
+sidekick.SideKickActions.selectAsset(view);
+SearchAndReplace.setSearchString("\\b" + s + "\\b");
+SearchAndReplace.setAutoWrapAround(false);
+SearchAndReplace.setReverseSearch(false);
+SearchAndReplace.setIgnoreCase(false);
+SearchAndReplace.setRegexp(true);
+SearchAndReplace.hyperSearch(view,true);
+textArea.setCaretPosition(position);
+textArea.setSelection(selection);
+HyperSearchResults window = view.getDockableWindowManager().getDockable("hypersearch-results");
+if (window == null || window.resultTree == null)
+	return;
+Timer timer;
+timer = new Timer(200, new ActionListener() {
+	public void actionPerformed(ActionEvent ae) {
+		selectNodeOfLine(window.resultTree, window.resultTreeRoot.getLastChild(), textArea.getCaretLine());
+		timer.stop();
+	}
+});
+timer.start();
+
+
+
+

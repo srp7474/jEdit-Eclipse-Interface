@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
+<TOC xmlns="http://www.w3.org/TR/xhtml1/transitional">
+  <ENTRY HREF="#idp140688812919152">
+    <TITLE>jEdit ErrorList plugin user's guide</TITLE>
+    <ENTRY HREF="#intro">
+      <TITLE>Introduction</TITLE>
+    </ENTRY>
+    <ENTRY HREF="#FileOpenerService">
+      <TITLE>FileOpenerService and FastOpen/SmartOpen. </TITLE>
+    </ENTRY>
+    <ENTRY HREF="#window">
+      <TITLE>The error list window</TITLE>
+    </ENTRY>
+    <ENTRY HREF="#highlight">
+      <TITLE>Error highlighting</TITLE>
+    </ENTRY>
+    <ENTRY HREF="#overview">
+      <TITLE>Error overview</TITLE>
+    </ENTRY>
+    <ENTRY HREF="#actions">
+      <TITLE>Additional commands</TITLE>
+    </ENTRY>
+    <ENTRY HREF="#options">
+      <TITLE> ErrorList Options </TITLE>
+    </ENTRY>
+    <ENTRY HREF="#api">
+      <TITLE>The error reporting API</TITLE>
+      <ENTRY HREF="#api-deps">
+        <TITLE>Specifying dependencies</TITLE>
+      </ENTRY>
+      <ENTRY HREF="#api-register">
+        <TITLE>Creating and registering an error source</TITLE>
+      </ENTRY>
+      <ENTRY HREF="#api-report">
+        <TITLE>Reporting errors</TITLE>
+      </ENTRY>
+      <ENTRY HREF="#idp140688813019376">
+        <TITLE>Performance Considerations</TITLE>
+      </ENTRY>
+    </ENTRY>
+    <ENTRY HREF="#changes">
+      <TITLE>Change log</TITLE>
+    </ENTRY>
+  </ENTRY>
+</TOC>

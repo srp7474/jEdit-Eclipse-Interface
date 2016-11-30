@@ -1,0 +1,95 @@
+/* This macro copys the standard internal classes to a new window for printing.
+ */
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.gjt.sp.util.Log;
+import org.gjt.sp.util.ThreadUtilities;
+import java.util.TreeMap;
+
+//                                                             1           2
+static Matcher oM1 = Pattern.compile("^ *public +static +class +([\\w]+)[^{]+([{])").matcher("");
+//                                       1                            2                 3         4      5
+static Matcher oM2 = Pattern.compile("^ *(public|private|protected)? *([a-zA-Z0-9_\\.]+)([^(]+)[(]([^{]+)([{])").matcher("");
+void printClasses() {
+  View oV = view;
+  TreeMap oTM = new TreeMap();
+  String sEOL = "\n";
+  String sPath = buffer.getPath();
+  int nIX = sPath.lastIndexOf("\\");
+  String sFileName = sPath.substring(nIX+1);
+  if (sFileName.startsWith("zz-") || (!sFileName.endsWith(".java"))) return;  // Avoid loops when we do wrong window 
+  String sFileText = sPath;
+  if (sPath.length() > 40) sFileText = "..."+sPath.substring(40);
+  
+  int nLine = 0;
+  boolean bHadMethod = false;
+  while(nLine < buffer.getLineCount()) {
+    String sText = buffer.getLineText(nLine);
+    if (oM1.reset(sText).find()) {
+      StringBuilder oSB = new StringBuilder();
+      oTM.put(oM1.group(1),oSB);
+      bHadMethod = false;
+      int nPos = buffer.getLineStartOffset(nLine)+oM1.start(2);
+      //Log.log(Log.DEBUG,"PrintClasses","move to "+nPos+" "+textArea.getCaretPosition());
+      textArea.setCaretPosition(nPos+1);
+      //Note: using textArea.getStructureMatch() was unreliable due to GUI updates
+      textArea.goToMatchingBracket();
+      int nNewPos = textArea.getCaretPosition();
+      if (nNewPos <= nPos) {
+        String sMsg = "Invalid structure at "+nLine+" - aborted class display";
+        oSB.append(sEOL+"//----- Class "+oM1.group(1)+" ----- "+sMsg+sEOL);
+        oSB.append(sText+"\r\n");
+        oSB.append("  Invalid structure at "+nLine+" - aborted class display"+sEOL);
+      } else {
+        int nEnd = textArea.getCaretLine();
+        String sMsg = " lines "+nLine+":"+nEnd;
+        oSB.append(sEOL+"//----- Class "+oM1.group(1)+" ----- "+sMsg+sEOL);
+        oSB.append(sText+sEOL);
+        int nLine2 = nLine;
+        while(nLine2 < nEnd) {
+          nLine2 += 1;
+          String sSubTxt = buffer.getLineText(nLine2);
+          if (oM2.reset(sSubTxt).find()) {
+            if (!bHadMethod) {
+              oSB.append(sEOL+"    // ----- constructors and methods -----"+sEOL);
+              bHadMethod = true;
+            }
+            oSB.append(sSubTxt+sEOL);
+            int nPos2 = buffer.getLineStartOffset(nLine2)+oM2.start(5);
+            textArea.setCaretPosition(nPos2+1);
+            textArea.goToMatchingBracket();
+            int nNewPos2 = textArea.getCaretPosition();
+            if (nNewPos2 > nPos2) {
+              nLine2 = textArea.getCaretLine();
+            } else {
+              oSB.append("  no move "+nNewPos2+" "+nPos2+sEOL);
+            }
+          } else {
+            if (sSubTxt.trim().length() > 0) {
+              oSB.append(sSubTxt+sEOL);
+            }
+          }
+        }
+        nLine = nEnd;
+      }
+    } else {
+      nLine += 1;
+    }
+  }
+  
+  // Now create new Edit Window
+  StringBuilder oSB1 = new StringBuilder();
+  oSB1.append("// ----- Classes for "+sFileText+" -----"+sEOL);
+  for(String sKey:oTM.keySet().toArray()) {
+    oSB1.append(""+oTM.get(sKey));
+  }
+  Buffer oNB = jEdit.newFile(view,"d:\\1");
+  oNB.insert(0,""+oSB1);
+  String sPath = "d:\\1\\zz-"+sFileName; // use zz- prefix to sort last on tab panel
+  oNB.save(view,sPath);
+
+}
+
+// main
+printClasses();

@@ -1,0 +1,40 @@
+
+/*
+ * Copy_Name_to_Clipboad.bsh - Copies the current buffer's filename
+ * to the clipboard.
+ *  with 'smart' rails partial action by Vovan
+ *
+ * Copyright (C) 2002-2004 Ollie Rutherfurd <oliver@rutherfurd.net>
+ *
+ * $Id: Copy_Name_to_Clipboard.bsh,v 1.2 2004/04/09 17:10:15 spestov Exp $
+ */
+
+void copyBufferNameToClipboard(Buffer buffer)
+{
+
+	String name = buffer.getName();
+	String first = name.substring(0, 1);
+	String ext = name.substring(name.length() - 5, name.length());
+	if (first.indexOf('_') == 0) {
+		if (ext.indexOf("rhtml") == 0) {
+			name = name.substring(1, name.length() - 6);
+		}
+	}
+	Registers.setRegister('$',name);
+	HistoryModel.getModel("clipboard").addItem(name);
+}
+
+copyBufferNameToClipboard(buffer);
+
+/*
+
+<listitem>
+	<para><filename>Copy_Name_to_Clipboad.bsh</filename></para>
+	<abstract><para>Copies the current buffer's filename
+		to the clipboard.
+	</para></abstract>
+</listitem>
+
+*/
+
+

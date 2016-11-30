@@ -1,0 +1,430 @@
+
+/*
+ * Make_Get_and_Set_Methods.bsh - a BeanShell macro for
+ * the jEdit text editor - facilitates the creation of
+ * get() and set() methods from instance variables
+ * Copyright (C) 2001 John Gellene
+ * jgellene@nyc.rr.com
+ * http://community.jedit.org
+ *
+ * based on code contributed to the jEdit Macro Guide project
+ * by Seppo Silaste
+ *
+ * Modified by Francis Dobi (francisdobi@users.sourceforge.net)
+ * June, 2004 
+ *
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ * $Id: Make_Get_and_Set_Methods.bsh,v 1.2 2001/11/06 17:28:22 jgellene Exp $
+ *
+ * Notes on use:(old)
+ *
+ * This macro works by grabbing text on the caret line of the text area
+ * and parsing it to get the first two tokens that are not contained
+ * in the macro's global string variable 'modifiers'.  It then constructs
+ * a simple get() or set() method from the parsing results, depending
+ * on which button you push.  You will probably generate nonsense if you
+ * parse a line that does not begin with an instance variable.
+ *
+ * The results can be edited in the two text area in the dialog.  Pressing
+ * either of the 'Insert' buttons will cause the contents of the corresponding
+ * text area to be pasted into the current buffer.
+ *
+ * The method parseLine() uses and returns a scripted object 'resultObject()'
+ * to pass the results of the parsing operation.  The absence of an explicit
+ * return type in the proptotype of parseLine() is necessary to permit this.
+ *
+ * If the current buffer's edit mode is Java, the macro will parse Java
+ * instance variables. Otherwise, the macro will parse C++ variables and
+ * write C++ methods (with an equal potential for writing nonsense if an data
+ * member is not being grabbed).
+ *
+ * Version 0.91
+ *
+ * Usage: (new: June 2004)
+ *  This macro is based on the one provided by jEdit 4.1 final.
+ *  Select the fields for you want to generate getter and setter methods.
+ *  Invoke this macro.
+ *  This will parse the selection, it will skip empty lines and linecomments(//) and
+ *  generates code which can be previewed and edited.
+ *  Click in the code to indicate insert position.
+ *  If all OK you can insert getter methods, setter methods or both.
+ *  Pressing both will close the dialog.
+ *  Generated code will be indented. 
+ *  Optionally documentation can be generated.
+ *  Works for boolean types and static fields.
+ *  Bugs: does not work for all type of C++/Java declaration. (eg: int array[]);
+ *
+ *  2004-10-24: fixed static field handling
+ *
+ *
+ *
+ */
+
+import javax.swing.border.*;
+import java.util.*;
+
+
+void makeGetSetDialog()
+{
+    title = "Make get and set methods from caret line text";
+
+    dialog = new JDialog(view, title, false);
+    content = new JPanel(new BorderLayout());
+    content.setBorder(new EmptyBorder(5, 10, 10, 10));
+    content.setPreferredSize(new Dimension(480, 320));
+    dialog.setContentPane(content);
+
+    // textPanel holds a getPanel and a setPanel; each of
+    // the child panels holds a label and a scrolling text area
+    textPanel = new JPanel(new GridLayout(2, 1, 0, 10));
+    textPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
+
+    setPanel = new JPanel(new BorderLayout());
+    setLabel = new JLabel("set() methods", SwingConstants.LEFT);
+    setText = new JTextArea();
+    setPanel.add(setLabel, "North");
+    setPanel.add(new JScrollPane( setText), "Center");
+    textPanel.add(setPanel);
+
+    getPanel = new JPanel(new BorderLayout());
+    getLabel = new JLabel("get() methods", SwingConstants.LEFT);
+    getText = new JTextArea();
+    getPanel.add(getLabel, "North");
+    getPanel.add(new JScrollPane( getText), "Center");
+    textPanel.add(getPanel);
+
+    content.add(textPanel, "Center");
+
+
+    buttonPanel = new JPanel(new GridLayout(7, 1, 0, 30));
+    buttonPanel.setBorder( new EmptyBorder(22, 5, 5, 5));
+
+	makedocCheckBox = new JCheckBox("Generate documentation",true);
+    makeSetButton = new JButton("Make Set");
+    insertSetButton = new JButton("Insert Set");
+    doneButton = new JButton("Done");
+    insertGetButton = new JButton("Insert Get");
+    makeGetButton = new JButton("Make Get");
+	insertBothButton = new JButton("Insert Both");
+	
+
+    buttonPanel.add(makeSetButton);
+    buttonPanel.add(insertSetButton);
+    buttonPanel.add(doneButton);
+    buttonPanel.add(makeGetButton);
+    buttonPanel.add(insertGetButton);
+	buttonPanel.add(insertBothButton);
+	buttonPanel.add(makedocCheckBox);
+
+    content.add(buttonPanel, "East");
+
+    // action listener for buttons
+
+    makeSetButton.addActionListener(this);
+    insertSetButton.addActionListener(this);
+    doneButton.addActionListener(this);
+    insertGetButton.addActionListener(this);
+    makeGetButton.addActionListener(this);
+	insertBothButton.addActionListener(this);
+	
+	dialog.getRootPane().setDefaultButton(insertBothButton);	
+	
+	
+	list=parseSelection(makedocCheckBox.isSelected());
+	this.getText.setText(list.get(0));
+	this.setText.setText(list.get(1));
+
+    actionPerformed(e)
+    {
+        cmd = e.getActionCommand();
+        if(cmd.indexOf("Done") != -1)
+        {
+			textArea.selectNone();
+            this.dialog.dispose();
+            return;
+        }
+        if(cmd.indexOf("Insert") != -1) {
+			oldStart = textArea.getSelectionStart();
+			oldEnd = textArea.getSelectionEnd();
+			textArea.selectNone();
+			if (e.getSource()==insertBothButton) {
+				doInsert(this.getText);
+				doInsert(this.setText);
+			} else if (e.getSource()==insertGetButton) {
+				doInsert(this.getText);
+			} else if (e.getSource()==insertSetButton) {
+				doInsert(this.setText);
+			}
+			if (e.getSource()==insertBothButton) {
+				dialog.setVisible(false);
+				dialog.dispose();
+				return;
+			}
+			textArea.setSelection(new Selection.Range(oldStart, oldEnd));
+			insertBothButton.requestFocus();
+		} else if(e.getSource()==makeGetButton) {
+			list=parseSelection(makedocCheckBox.isSelected());
+			this.getText.setText(list.get(0));
+		} else {
+			list=parseSelection(makedocCheckBox.isSelected());
+			this.setText.setText(list.get(1));
+		}
+    }
+
+
+    dialog.pack();
+    dialog.setLocationRelativeTo(view);
+    dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+    dialog.setVisible(true);
+}
+
+String makeSet(String type, String variable, boolean isStatic, boolean makedoc)
+{
+    if(variable.length() == 0) return "";
+    c = variable.substring(0,1);
+    c = c.toUpperCase();
+    sb = new StringBuffer();
+	if (makedoc) {
+		sb.append("/**\n");
+		sb.append("  * Sets the value of ").append(variable).append(".\n");
+		sb.append("  * @param ").append(variable).append(" The new value for ").append(variable).append(".\n");
+		sb.append("  */\n");
+	}
+    if(USE_JAVA == true)
+        sb.append("public ");
+    else
+    {
+        sb.append("/* header:\n ");
+		if (isStatic) {
+			sb.append("static ");
+		}
+		sb.append("void set");
+        sb.append(c);
+        sb.append(variable.substring(1));
+        sb.append("(");
+        sb.append(type);
+        sb.append(" ");
+        sb.append(variable);
+        sb.append("Param");
+        sb.append(");\n*/\n");
+    }
+	if (isStatic) {
+		sb.append("static ");
+	}
+    sb.append("void set");
+    sb.append(c);
+    sb.append(variable.substring(1));
+    sb.append("(");
+    sb.append(type);
+    sb.append(" ");
+    sb.append(variable);
+    if(USE_JAVA == false)
+        sb.append("Param");
+    sb.append(") {\n\t");
+    if(USE_JAVA == true)
+        sb.append("this.");
+    sb.append(variable);
+    sb.append(" = ");
+    sb.append(variable);
+    if(USE_JAVA == false)
+        sb.append("Param");
+    sb.append(";\n}\n");
+    return sb.toString();
+}
+
+
+
+String makeGet(String type, String variable, boolean isStatic, boolean makedoc)
+{
+    if(variable.length() == 0) return "";
+    c = variable.substring(0,1);
+    c = c.toUpperCase();
+    sb = new StringBuffer();
+	if (makedoc) {
+		sb.append("/**\n");
+		sb.append("  * Returns the value of ").append(variable).append(".\n");
+		sb.append("  * @return the ").append(variable).append(" value.\n");
+		sb.append("  */\n");
+	}
+    if(USE_JAVA == true)
+        sb.append("public ");
+    else
+    {
+        sb.append("/* header:\n");
+		if (isStatic) {
+			sb.append("static ");
+		}
+        sb.append(type);
+		if ("bool".equals(type.toLowerCase())) {
+			sb.append(" is");
+		} else {
+			sb.append(" get");
+		}
+        sb.append(c);
+        sb.append(variable.substring(1));
+        sb.append("() const;\n*/\n");
+    }
+	if (isStatic) {
+		sb.append("static ");
+	}
+    sb.append(type);
+	if (USE_JAVA && "boolean".equals(type.toLowerCase()) || !USE_JAVA && "bool".equals(type.toLowerCase())) {
+		sb.append(" is");
+	} else {
+		sb.append(" get");
+	}
+    sb.append(c);
+    sb.append(variable.substring(1));
+    sb.append("()");
+    if(USE_JAVA == false)
+        sb.append(" const");
+    sb.append(" {\n\treturn ");
+    sb.append(variable);
+    sb.append(";\n}\n");
+    return sb.toString();
+}
+
+List parseSelection(boolean makedoc)
+{
+	int selectionStart = textArea.getSelectionStart();                                                                                           
+	int selectionEnd = textArea.getSelectionEnd();
+	int startLine = textArea.getLineOfOffset(selectionStart);
+	int endLine = textArea.getLineOfOffset(selectionEnd);
+	
+	list = new ArrayList();
+	getters = new StringBuffer();
+	setters = new StringBuffer();
+	
+	for (int i=startLine;i<=endLine;i++) {
+		line = textArea.getLineText(i).trim();
+		//Macros.message(view, "i:"+i);
+		//Macros.message(view, "line:"+line);
+		if(!(line == null || line.equals("") || line.startsWith("//") || line.startsWith("*")))
+		{
+			tokenizer = new StringTokenizer(line);
+			if(tokenizer.countTokens() >= 2)
+			{
+				// get the first non-modifier token if there is one
+				returnType = tokenizer.nextToken();
+				isStatic = false;
+				while( modifiers.indexOf(returnType) != -1
+				&& tokenizer.hasMoreTokens()) {
+					isStatic = returnType.equals("static");
+					returnType = tokenizer.nextToken();
+				}
+				//Macros.message(view, "type:"+returnType);
+				if(tokenizer.hasMoreTokens())
+				{
+					token = tokenizer.nextToken();
+					if (!USE_JAVA) {
+						while (token.indexOf("*")!=-1) {
+							returnType += token;
+							token = tokenizer.nextToken();
+						}
+					}
+					instanceVar = token;
+					// remove the ; if there is one
+					if(instanceVar.endsWith(";"))
+					instanceVar =
+					instanceVar.substring(0, instanceVar.length() - 1);
+					/// if the code doesn't have a space between the instance
+					// variable and the possible '=';
+					// get the correct instance variable.
+					if(instanceVar.indexOf('=') != -1)
+						instanceVar =
+					instanceVar.substring(0, instanceVar.indexOf('='));
+					
+					getters.append(makeGet(returnType, instanceVar, isStatic, makedoc));
+					setters.append(makeSet(returnType, instanceVar, isStatic, makedoc));
+				}
+			}
+		}
+	}
+	list.add(getters.toString());
+	list.add(setters.toString());
+	
+	return list;
+}
+
+
+
+void doInsert(JTextArea insertText)
+{
+    insert = insertText.getText();
+    if(insert != null) {
+		textArea.insertEnterAndIndent();
+		int start = textArea.getCaretPosition();
+        textArea.setSelectedText(insert);
+		int end = textArea.getCaretPosition();
+		textArea.setSelection(new Selection.Range(start, end));
+		textArea.indentSelectedLines();
+	}
+}
+
+
+
+// main routine
+
+// setting USE_JAVA to false will cause the macro to be suitable
+// for reading and writing C++ source code
+USE_JAVA = buffer.getMode().getName().equals("java");
+modifiers = "public protected private static transient final //";
+if(USE_JAVA == false)
+    modifiers = "// public protected private static";
+
+// external global variables imported by jEdit are
+// not visible in methods called by ActionListener
+mainTextArea = textArea;
+mainView = view;
+
+makeGetSetDialog();
+
+/*
+	Macro index data (in DocBook format)
+
+<listitem>
+    <para><filename>Make_Get_and_Set_Methods.bsh</filename></para>
+    <abstract><para>
+        Creates <function>getXXX()</function> or <function>setXXX()</function>
+        methods that can be pasted into the buffer text.
+    </para></abstract>
+    <para>
+        This macro presents a dialog that will <quote>grab</quote> the names
+        of instance variables from the caret line of the current buffer
+        and paste a corresponding <function>getXXX()</function> or
+        <function>setXXX()</function> method to one of two text areas in the
+        dialog.  The text can be edited in the dialog and then pasted into the
+        current buffer using the <guilabel>Insert...</guilabel> buttons.  If
+        the caret is set to a line containing something other than an instance
+        variable, the text grabbing routine is likely to generate nonsense.
+    </para>
+    <para>
+        As explained in the notes accompanying the source code, the macro
+        uses a global variable which can be set to configure the macro to work
+        with either Java or C++ code.  When set for use with C++ code,
+        the macro will also write (in commented text) definitions of
+        <function>getXXX()</function> or <function>setXXX()</function>
+        suitable for inclusion in a header file.
+    </para>
+</listitem>
+
+*/
+
+// end Make_Get_and_Set_Methods.bsh
+
+

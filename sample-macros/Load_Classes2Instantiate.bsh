@@ -1,0 +1,459 @@
+
+// Load_Classes2Instantiate.bsh - a BeanShell macro script for the jEdit text editor
+// Version 5-Feb-2005.
+//
+// This macro is useful for the user of BeanShell - Loads compiled classes:
+// Load classes given by the user into a Hashtable (full class name, Class).
+// The user is presented with a browser to select the classes to load (ctrl+click 
+// for multiple selection) and then is asked to say what's the directory part of
+// the path and what's a fully qualified name of one of the selected classes.
+// @return Hashtable with all the loaded classes
+//
+// ******************************************************************** USAGE
+// Example of class instantiation:
+// 1. Open the macro in a buffer and evaluate the buffer in beanshell to make 
+//		the functions available
+// 2. theClassHashtable = loadClassFromFile();
+// 3. myClass = theClassHashtable.get("mypackage.MyClass");
+// 4.a - no-argument constructor:
+//   myObj = myClass.newInstance();
+// 4.b - constructor taking an integer and string:
+//   myObj = myClass.getConstructor(new Class[]{Integer.TYPE, String.class})
+//     .newInstance( new Object[]{ 5, "xx" });
+//
+// ******************************************************************** /USAGE
+//
+// ******************************************************************** HELP
+// MULTIPLE FILE SELECTION HELP
+// 
+// The browser is a bit strange and tricky to use: to select more
+// files you HAVE TO select them with ctrl+click - if done correctly the text
+// field left to the "Open" button is empty. If it is not empty you've
+// selected only one file.
+//
+// ******************************************************************** /HELP
+//
+// Author: Jakub (Kuba) Holy
+// E-mail: maly.velky@email.cz
+//
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with the jEdit application; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+/*
+ * EXAMPLE - my script to setup instances of my project classes to test the code.
+ 
+// 1. "Eval. buffer in beanshell" for beanshell_Load_Class.bsh
+try
+{
+	Class.forName("yak.jedit.macro.loadclasses.LoadClasses2Instantiate");
+} 
+catch(ClassNotFoundException e)
+{
+	source("/home/malyvelky/.jedit/macros/Load_Classes2Instantiate.bsh");
+}
+
+// Load all classes
+hash = LoadClasses2Instantiate.loadAllClassesRecurs("/home/malyvelky/work/moje_projekty/jedit/TextAutocomplete/bin");
+
+// An instance of AutoComplete
+autocClass = hash.get("yak.jedit.autocomplete.AutoComplete");
+autoc = autocClass.getConstructor(new Class[]{ view.getClass() }).newInstance( new Object[]{ view });
+
+// An instance of CompletionPopup
+popupClass = hash.get("yak.jedit.autocomplete.CompletionPopup");	
+popupConstr = popupClass.getConstructor(new Class[]{ view.getClass(), autocClass });
+myPopup = popupConstr.newInstance( new Object[]{ view, autoc });
+
+// An instance of KeyTypedListener
+listenClass = hash.get("yak.jedit.autocomplete.KeyTypedListener");	
+listenConstr = listenClass.getConstructor(new Class[]{ view.getClass() });
+//listener = listenConstr.newInstance( new Object[]{ view }); // starts listening immediately
+
+*/
+/*
+ * Created on 5.2.2005
+ */
+package  yak.jedit.macro.loadclasses;
+
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileFilter;
+
+import org.gjt.sp.jedit.*;
+import org.gjt.sp.util.Log;
+import org.gjt.sp.jedit.browser.VFSFileChooserDialog;
+import org.gjt.sp.jedit.browser.VFSBrowser;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+
+
+/**
+ * Load classes given by the user into a Hashtable.
+ * The user is either presented with a browser to select classes to load or
+ * s/he specifies a base directory of the package whose classes we want to load.
+ * 
+ * @see LoadClasses2Instantiate#loadClassesWithBrowser( org.gjt.sp.jedit.View view )
+ * @see LoadClasses2Instantiate#loadAllClassesRecurs( String packageBaseDir )
+ * USAGE:<ol>
+ *		<li> Open the macro in a buffer and evaluate the buffer in beanshell to make 
+ *		the functions available
+ *		<li> theClassHashtable = loadClassFromFile();
+ *		<li> myClass = theClassHashtable.get("mypackage.MyClass");
+ *		<li> a) - no-argument constructor:<br>
+ *			myObj = myClass.newInstance();
+ *		<li> b) - constructor taking an integer and string:<br>
+ *			myObj = myClass.getConstructor(new Class[]{Integer.TYPE, String.class})<br>
+ *				.newInstance( new Object[]{ 5, "xx" });
+ *  </ol>
+ */
+public class LoadClasses2Instantiate {
+	
+	////////////////////////////////////////////////////////////////////////
+    
+	// loadClassesWithBrowser {{{
+    /**
+     * Load classes given by the user into a Hashtable (full class name, Class).
+     * The user is presented with a browser to select classes to load (ctrl+click 
+     * for multiple selection) and then is asked to say what's the directory part of
+     * the path and what's a fully qualified name of one of the selected classes.
+     * @return Hashtable with all the loaded classes
+     *
+     * Example of class instantiation ( myClass obtained from the hash, with a 
+     * constructor taking an integer and a string:
+     * <code>
+     * myObj = myClass.getConstructor(new Class[]{Integer.TYPE, String.class})
+     *    .newInstance( new Object[]{ 5, "xx" });<br>
+     * OR: myClassObj = (mypackage.MyClass)class.newInstance();
+     * </code>
+     */
+    public static 
+    java.util.Hashtable 
+    loadClassesWithBrowser( org.gjt.sp.jedit.View view )
+    {
+//     Full path to active buffer directory
+       View theView = view;
+       Buffer buffer = view.getBuffer();
+       String[] files; // paths of .class files to load   
+
+       // GET FILES
+       // Select a file (browse from buffer directory)
+       // Note: the browser is a bit strange and tricky to use: to select more
+       // files you HAVE TO select them with ctrl+click - if done correctly the text
+       // field left to the "Open" button is empty.
+       //
+       VFSFileChooserDialog fileDialog =  new VFSFileChooserDialog( 
+       		theView ,
+    		buffer.getDirectory(), 
+    		VFSBrowser.OPEN_DIALOG, 
+    		true );
+       // false for non-multiple selections
+       files = fileDialog.getSelectedFiles();
+       if (files == null) {
+         return null;
+       }           
+             
+       //
+       // ASK FOR THE PACKAGE NAME
+       //
+       String classPath = files[0];    
+       // file name int base dir + fully qualified class name   
+       // startsWith(String prefix, int toffset)
+       if( classPath.regionMatches( classPath.length() - 6 , ".class", 0, 6) ) {
+    	   classPath = classPath.substring( 0, classPath.length() - 6 );
+       }
+       
+       String className = classPath.replace( java.io.File.separatorChar, '.' );
+       className = Macros.input( theView, "Full name of this class (package & class name) is:"
+       	+ "\n(Delete only the prefix that is not part of the package name)"
+    	+ "\nYou've selected " + files.length + " files (see macro source for help)", className );   
+    	if( className == null ) { return null; }	
+    	// Remove the class name part and the trailing '/' from classPath
+    	classPath = classPath.substring( 0, classPath.length() - className.length() - 1 );
+       
+    	//
+    	// Load the classes on the list
+    	//
+    	try {
+    	    return loadClassesFromList( files, classPath );
+    	} catch( MalformedURLException e) { //this shoud never happen
+    	    showError("Couldn't finish, there was a problem:\n" + e );
+    	    return null;
+    	}
+       
+    } // loadClassesWithBrowser }}}
+
+    ////////////////////////////////////////////////////////////////////////
+    // loadAllClasses {{{
+    /**
+     * Load all classes in a directory and all its subdirectories.
+     * The directory must be a base directory of a package the classes
+     * belong to.
+     */
+    public static 
+    java.util.Hashtable 
+    loadAllClassesRecurs( String packageBaseDir )
+    throws IllegalArgumentException
+    {
+        java.util.Hashtable hash = null;
+        File packageBase = new File( packageBaseDir );
+                
+        checkIsDirOk( packageBase );
+        
+        try 
+        {
+        // Find all class files starting in the base directory
+            java.util.Vector classFileVect = new java.util.Vector( 20 );
+        	classFileVect = findClassesRecurs( packageBase, classFileVect );
+        
+        // Load the classes
+        	String[] classFilesStr = new String[ classFileVect.size() ];
+        	for ( int i = 0; i < classFilesStr.length; ++i )
+        	{
+        	    classFilesStr[i] = ((File)classFileVect.get(i)).toString(); 
+        	}
+        	        
+        	hash = loadClassesFromList( classFilesStr, packageBaseDir.toString() );
+        } catch ( IllegalArgumentException e) {
+            showError("Couldn't finish, there was a problem:\n" + e );
+        } catch ( MalformedURLException e) {
+            showError("Couldn't finish, there was a problem:\n" + e );
+        } 
+        
+        return hash;
+    } // loadAllClasses }}}
+	
+	//////////////////////////////////////////////////////////////////////////
+	//						AUXILIARY CLASSES
+	//////////////////////////////////////////////////////////////////////////
+    
+    /** Filter out non-directories. */
+    static java.io.FileFilter directoryFilter = new java.io.FileFilter(){
+        public boolean accept( java.io.File file ){            
+            return file.isDirectory();
+        } // accept
+    };
+    
+    /** Filter out non .class files */
+    static java.io.FileFilter classFilter = new java.io.FileFilter(){
+        public boolean accept( java.io.File file ){                         
+            return file.getName().toLowerCase().matches(".*[.]class");
+        } // accept
+    };
+
+    ////////////////////////////////////////////////////////////////////////
+    // findClassesRecurs {{{
+    /** Returns a list of all classes in the given directory and all its subdirectories. */
+    public static
+    java.util.Vector 
+    findClassesRecurs( java.io.File dir, java.util.Vector result )
+    throws IllegalArgumentException
+    {
+        // Add classes from this directory
+        result.addAll( java.util.Arrays.asList( 
+                findFilesInDir( dir, classFilter ) ) );
+        
+        // Get subdirs
+        java.io.File[] subDirs = findFilesInDir( dir, directoryFilter );
+                
+        // Add recursively classes from subdirs
+        for ( int i = 0; i < subDirs.length; ++i )
+        {
+            findClassesRecurs( subDirs[i], result );
+        } // for all subdirs
+                
+        return result;
+    } // findClassesRecurs }}}
+
+    ////////////////////////////////////////////////////////////////////////
+    // findFilesInDir {{{
+    /** Return array of files of the type given by the file filter in the current dir.
+     * Empty if no such files, null if I/O exception. */
+    public static
+    java.io.File[] 
+    findFilesInDir( java.io.File dir, java.io.FileFilter whatFiles )
+    throws IllegalArgumentException
+    {
+        checkIsDirOk( dir );
+        return dir.listFiles( whatFiles );                        
+    } // findFilesInDir }}}
+    
+    ////////////////////////////////////////////////////////////////////////////////
+    // checkIsDirOk {{{
+    /** Check whether the file is a directory and does exist, display an error if not.*/
+    public static
+    void 
+    checkIsDirOk( java.io.File dir )
+    throws IllegalArgumentException
+    {
+        if ( ! dir.exists() ) { 
+    		showError("Sorry, but the directory '" +  dir + "' doesn't exist.");
+    		throw new IllegalArgumentException("Sorry, but the directory '" +  dir + "' doesn't exist.");
+    	}
+    	else if ( ! dir.isDirectory() ) { 
+    		showError("Sorry, but '" +  dir + "' isn't a directory.");
+    		throw new IllegalArgumentException("Sorry, but the directory '" +  dir + "' doesn't exist.");
+    	} //if-else errors
+                
+    } // checkIsDirOk }}}
+    
+        
+    ////////////////////////////////////////////////////////////////////////////////
+    /** Display an error to the user. */
+    public static
+    void  
+    showError( String errorMsg )
+    {
+    	Macros.error( /*view*/jEdit.getActiveView(), "Load_Class macro error:\n" + errorMsg );
+        //System.err.println( "Load_Class macro error:\n" + errorMsg );
+    }
+
+    
+    ////////////////////////////////////////////////////////////////////////////////
+    // loadClassesFromList {{{
+    /**
+     * Loads all given classes into a hashtable.
+     * @parma  files An array of absolute paths of the class files to load
+     * 			Must not be empty or null.
+     * @parma  baseDir Base directory of the package whose classes we're to load
+     * @return Hashtable mapping fully qualified class names (String) to their Classes.
+     * @throws MalformedURLException if the baseDir is not a valid path
+     */
+    protected static 
+    java.util.Hashtable 
+    loadClassesFromList( String[] files, String baseDir )
+    throws MalformedURLException
+    {
+        // Remove trailing '/' if present
+        if ( baseDir.endsWith( File.separator ) )
+        {
+            baseDir = baseDir.substring( 0, baseDir.length() - File.separator.length() );
+        }
+        System.out.println("Base: " + baseDir );
+        
+        java.util.Hashtable hash = new java.util.Hashtable( files.length );
+        String className = null;
+        ClassLoader loader = null;
+        //File baseDirFile = new File( baseDir );
+        
+        // Create a class loader loading from the given directory      
+  	    loader = new URLClassLoader( new URL[]{ new File( baseDir ).toURL() });        
+        
+        // For all files
+        for( int i = 0; i < files.length; ++i )
+        {
+     	   // Transform path to a class name: remove basedir and .class, '/' -> '.'
+            className = files[i].substring( baseDir.length()+1, files[i].length() - 6 )
+     	   		.replace( File.separatorChar, '.' );
+     	   Log.log( Log.DEBUG, Macros.class, "loadClassFromFile macro: Loading " + className + " from " + baseDir );
+     	        	       	   
+     	   // Load the class
+     	   
+     	   Class myClass = null;
+     	   try {     	       
+     	       // true = do initialize
+     	       myClass = Class.forName( className, true, loader );     	   
+     	   } catch (ClassNotFoundException e){
+     	       /*showError*/System.err.println("Class not found exception: " + className );
+     	       return null;
+     	   }    	       	   
+     	   
+     	   // Add the class to the hash
+     	   hash.put( myClass.getName(), myClass );
+     	   Log.log( Log.DEBUG, Macros.class, "loadClassFromFile macro: Loaded the class " + myClass );
+        }
+        
+  	   Log.log( Log.DEBUG, Macros.class, "loadClassFromFile macro: hash: " + hash );
+        return hash;
+    } // loadClassesFromList }}}
+    
+    ////////////////////////////////////////////////////////////////////////////////
+    /** Get class name without the package name. */
+    /*
+    public static 
+    String 
+    getClassWithoutPackage( Class klass )
+    {
+        int pkgLen = klass.getPackage().getName().length();
+        return klass.getName().substring( pkgLen + 1 );
+    } // getClassWithoutPackage
+    */
+
+    /*
+    public static void main(String[] args){
+        try {
+            LoadClasses2Instantiate.loadAllClassesRecurs( "/home/malyvelky/programy/eclipse-3.0.1/workspace/test_area/bin/" );
+        } catch(Exception e){e.printStackTrace();}
+    }
+    */
+    
+	/*
+	// replaced by IllegalArgumentException because bean shell doesn't like nested classes
+    static class NoSuchDirectoryException extends Exception
+    {
+        public NoSuchDirectoryException(String msg){ super(msg); }
+    }
+	*/
+
+} // class LoadClasses2Instantiate 
+
+////////////////////////////////////////////////////////////////////////////////
+// 
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+	Macro index data (in DocBook format)
+
+<listitem>
+    <para><filename>beanshell_Load_Class.bsh</filename></para>
+    <abstract><para>
+        This macro is useful for users of BeanShell - it defines a function 
+		that loads compiled classes and returns them in a hashtable.
+		The user is either presented with a browser to select classes to load or
+		s/he specifies a base directory of the package whose classes we want to load.
+    </para></abstract>
+    <para>        
+		Load classes given by the user into a Hashtable (full class name, Class).
+		The user is presented with a browser to select the classes to load (ctrl+click 
+		for multiple selection) and then is asked to say what's the directory part of
+		the path and what's a fully qualified name of one of the selected classes.
+		
+		see loadClassesWithBrowser( view )
+		see loadAllClassesRecurs( String packageBaseDir )
+		
+		USAGE:
+		1. Open the macro in a buffer and evaluate the buffer in beanshell to make 
+		the functions available
+		2. theClassHashtable = loadClassFromFile();
+		3. myClass = theClassHashtable.get("mypackage.MyClass");
+		4.a - no-argument constructor:
+			myObj = myClass.newInstance();
+		4.b - constructor taking an integer and string:
+			myObj = myClass.getConstructor(new Class[]{Integer.TYPE, String.class})
+				.newInstance( new Object[]{ 5, "xx" });
+    </para>
+	<para>
+		HELP on multiple file selection
+		The browser is a bit strange and tricky to use: to select more
+		files you HAVE TO select them with ctrl+click - if done correctly the 
+		text field left to the "Open" button is empty. If it is not empty you've
+		selected only one file.
+	</para>
+</listitem>
+
+*/
+
+// end beanshell_Load_Class.bsh
+

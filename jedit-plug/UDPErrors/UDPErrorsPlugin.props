@@ -1,0 +1,21 @@
+# General options
+
+# Note: We set this to startup because the UDP listener needs to be running and
+#       will be triggered by an external source.
+#       It is a lightweight plugin as it has no GUI requirements
+
+plugin.udperrors.UDPErrorsPlugin.name=UDPErrors
+plugin.udperrors.UDPErrorsPlugin.author=Steve Pritchard
+plugin.udperrors.UDPErrorsPlugin.contributors=jEdit contributors
+plugin.udperrors.UDPErrorsPlugin.version=1.0.0
+plugin.udperrors.UDPErrorsPlugin.docs=index.html
+plugin.udperrors.UDPErrorsPlugin.activate=startup
+plugin.udperrors.UDPErrorsPlugin.depend.0=jedit 04.02.06.00
+plugin.udperrors.UDPErrorsPlugin.depend.2=plugin errorlist.ErrorListPlugin 1.3.1
+
+# Default user properties
+udperrors.port=7771
+
+# Error message handlers
+UDPListener.bind.title=UDP Error
+UDPListener.bind.message=Port {0} already in use. ErrorList interface disabled

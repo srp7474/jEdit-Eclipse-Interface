@@ -1,0 +1,119 @@
+
+// Duplicate the line at the caret incrementing the numbers
+//
+// Example:
+// variable1 = tmpvar1 ;
+// will become
+// var1 = tmpvar1 ;
+// var2 = tmpvar2 ;
+//
+// A list a characters after which no implementation should occur can be given
+//
+// TODO: do not implement 2 in atan2 (probably using regexp)
+//
+// Author: Gaël Ecorchard
+//
+// 0.1 - 12.03.08 First version
+
+// Set of characters after which a number is not incremented
+char[] excludecharset = {'+','-','*','/','^','=','e','E',' ',','};
+
+////////////////////////////////////////////////////////////////////////////////
+// Do not modify under this line
+////////////////////////////////////////////////////////////////////////////////
+
+// return the next character, i.e., next number if number and same character
+// otherwise
+char NextChar(char c)
+{
+    switch (c) {
+    case '0': return('1'); break;
+    case '1': return('2'); break;
+    case '2': return('3'); break;
+    case '3': return('4'); break;
+    case '4': return('5'); break;
+    case '5': return('6'); break;
+    case '6': return('7'); break;
+    case '7': return('8'); break;
+    case '8': return('9'); break;
+    case '9': return('0'); break;
+    default:    return(c); break;
+    }
+}
+
+// return true is c={0,1,2,3,4,5,6,7,8,9}, false otherwise
+boolean isInt(char c)
+{
+    return(c == '0' ||
+           c == '1' ||
+           c == '2' ||
+           c == '3' ||
+           c == '4' ||
+           c == '5' ||
+           c == '6' ||
+           c == '7' ||
+           c == '8' ||
+           c == '9');
+}
+
+// Increment returns either the same character or the incremented one
+char Increment(char c, String rest)
+{
+    if(rest.equals("") || !isInt(rest.charAt(0)))
+        return(NextChar(c));
+    else
+    {
+        next = rest.charAt(0);
+        if (next == '9')
+        {
+            if(rest.length()==1)
+                return(NextChar(c));
+            if (Increment(next,rest.substring(1)) == '0')
+                return(NextChar(c));
+            return(c);
+        }
+        else
+            return(c);
+
+    }
+}
+
+// return true if c belongs to set, false otherwise
+boolean anycharcomp(char c, char[] set)
+{
+    for(char charofset:set) if(c==charofset) return(true);
+    return(false);
+}
+
+// main subroutine
+void DuplicateAndIncrement()
+{
+    line = textArea.getCaretLine();
+    offset = textArea.getCaretPosition();
+    LineText = textArea.getLineText(line);
+    textArea.goToEndOfLine(false);
+    textArea.setSelectedText("\n");
+    int len = LineText.length();
+    StringBuffer NewLineText = new StringBuffer(len);
+    for(i=0;i<len;i++) {
+        if(anycharcomp(LineText.charAt(i),excludecharset)) {
+            NewLineText.append(LineText.charAt(i));
+            if(i<(len-1)) {
+                NewLineText.append(LineText.charAt(++i));
+            }
+        }
+        else
+            NewLineText.append(Increment(LineText.charAt(i),LineText.substring(i+1)));
+    }
+    textArea.setSelectedText(NewLineText.toString());
+    textArea.setCaretPosition(offset+len+1);
+}
+
+// this single line of code is the script's main routine
+// it calls the methods and exits
+if(buffer.isReadOnly())
+    Macros.error(view, "Buffer is read-only.");
+else
+    DuplicateAndIncrement();
+
+

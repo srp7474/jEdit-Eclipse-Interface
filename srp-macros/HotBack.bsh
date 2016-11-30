@@ -1,0 +1,15 @@
+/* This macro works in unison with HotJump and will go back to the originating line
+ */
+
+void hotBack() {
+  String sPrev = jEdit.getProperty("hotJumpBack");
+  if (sPrev == null) {
+    Macros.message(null, "No previous hotJump location found");
+    return;
+  }
+  int nPos = Integer.parseInt(sPrev);
+  textArea.setCaretPosition(nPos);
+}
+
+// main
+hotBack();

@@ -1,0 +1,145 @@
+
+/**
+    Extract_Matches.bsh - A jEdit BeanShell macro that extracts all
+    tokens matched by a user-specified regular expression and puts
+    them into a new buffer. Optionally returns a unique and/or sorted
+    list of matches.
+    
+    History:
+    - 0.4 Sun 01 Mar 2009 Peter Adolphs <futzilogik@users.sourceforge.net>
+        * use java.util.regex
+    - 0.3 Thu 02 Nov 2006 Peter Adolphs <futzilogik@users.sourceforge.net>
+        * now works with jEdit 4.3pre7
+        * more error messages
+    - 0.2 Sat 29 Jul 2006 Peter Adolphs <futzilogik@users.sourceforge.net>
+        * default jEdit button order
+    - 0.1 Thu 27 Jul 2006 Peter Adolphs <futzilogik@users.sourceforge.net>
+        * first release
+    
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation; either version 2
+    of the License, or any later version.
+    
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+*/
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Set;
+import java.util.List;
+import javax.swing.border.EmptyBorder;
+
+void createDialog()
+{
+    dialog = new JDialog(view, "Extract Matches", false);
+    
+    mainPanel = new JPanel(new GridLayout(3, 1, 10, 10));
+    mainPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
+    
+    fieldPanel = new JPanel(new GridLayout(1, 2, 10, 10));
+    regexpLabel = new JLabel("Regular Expression:");
+    fieldPanel.add(regexpLabel);
+    regexpField = new HistoryTextField("Regexp");
+    regexpField.addActionListener(this);
+    fieldPanel.add(regexpField);
+    mainPanel.add(fieldPanel);
+    
+    uniqCheckBox = new JCheckBox("Get unique list of matches");
+    mainPanel.add(uniqCheckBox);
+    
+    sortCheckBox = new JCheckBox("Get sorted list of matches");
+    mainPanel.add(sortCheckBox);
+    
+    dialog.getContentPane().add(mainPanel, "Center");
+    
+    buttonPanel = new JPanel();
+    buttonPanel.setLayout(new FlowLayout());
+    JButton extractButton = new JButton("Extract");
+    extractButton.addActionListener(this);
+    buttonPanel.add(extractButton);
+    JButton closeButton = new JButton("Close");
+    closeButton.addActionListener(this);
+    buttonPanel.add(closeButton);
+    dialog.getRootPane().setDefaultButton(extractButton);
+    dialog.getContentPane().add(buttonPanel, "South");
+    
+    dialog.pack();
+    dialog.setLocationRelativeTo(view);
+    dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+    dialog.setVisible(true);
+    
+    void actionPerformed(e)
+    {
+        if (e.getSource() == extractButton) {
+            try {
+                regexpField.addCurrentToHistory();
+                List matches = getMatches(regexpField.getText(), 
+                              uniqCheckBox.isSelected(),
+                              sortCheckBox.isSelected());
+                if (matches.size() > 0) {
+                    // collect matches:
+                    StringBuffer strBuf = new StringBuffer();
+                    Iterator it = matches.iterator();
+                    while (it.hasNext())
+                        strBuf.append((String)it.next());
+                    
+                    // write results to a new buffer:
+                    Mode mode = textArea.getBuffer().getMode();
+                    jEdit.newFile(view);
+                    textArea.getBuffer().setMode(mode);
+                    textArea.setText(strBuf.toString());
+                    dialog.dispose();
+                } else {
+                    Macros.message(dialog, "No matches.");
+                }
+            } catch (Exception e) {
+                Macros.error(view, e.getMessage());
+            }
+        } else if (e.getSource() == closeButton) {
+            dialog.dispose();
+        }
+    }
+}
+
+List getMatches(String regex, boolean uniq, boolean sort)
+    throws Exception
+{
+    // compile regular expression:
+    Pattern pattern = null;
+    try {
+        pattern = Pattern.compile(regex, Pattern.MULTILINE);
+    } catch (PatternSyntaxException e) {
+        Macros.error(view, "Invalid regular expression.");
+        return;
+    }
+    
+    // get the text to search in:
+    String text = textArea.getSelectedText();
+    if (text == null)
+        text = textArea.getText();
+    
+    // evaluate matches:
+    List matches = new ArrayList();
+    Matcher matcher = pattern.matcher(text);
+    Set uniqMatches = new HashSet();
+    while (matcher.find()) {
+        String match = matcher.group() + "\n";
+        if (!uniq || !uniqMatches.contains(match))
+            matches.add(match);
+        uniqMatches.add(match);
+    }
+    if (sort)
+        Collections.sort(matches);
+    
+    return matches;
+}
+
+createDialog();
+

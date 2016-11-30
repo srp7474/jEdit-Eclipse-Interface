@@ -1,0 +1,126 @@
+
+/**
+ * Write_Javadoc_Comment.bsh - a Beanshell macro for jEdit that writes
+ * javadoc comments by displaying an arbitrary number of input boxes, and
+ * upon a blank entry (if at least one non-blank entry was given) searches
+ * up from the cursor for a line beginning with "public", "private", or
+ * "protected", then inserts a comment in javadoc-style format above that
+ * line, opening a new one if necessary. For this to work, all methods that
+ * you want to comment MUST begin with one of those three keywords.
+ *
+ * This macro also supports several shortcuts that can be used for the
+ * at-symbol labels. Any entry beginning with one of these will replace the
+ * shortcut with the appropriate label:
+ *		author [or] a : @author
+ *		docRoot [or] root : {@docRoot}
+ *		deprecated [or] d : @deprecated
+ *		exception [or] e : @exception
+ *		inherit [or] inheritDoc [or] i : {@inheritDoc}
+ *		link [or] l : {@link}
+ *		linkplain [or] lp : {$linkplain}
+ *		param [or] p : @param
+ * 		return [or] r : @return
+ *		see : @see
+ *		serial : @serial
+ *		serialData [or] sd : @serialData
+ *		serialField [or] sf : @serialField
+ *		since [or] s : @since
+ *		throws [or] t : @throws
+ *		value : @value
+ *		version [or] v : @version
+ *
+ * @author Damien Radtke
+ */
+
+jEdit.setProperty("macro.write-javadoc-comment.title", "Javadoc Comment");
+jEdit.setProperty("macro.write-javadoc-comment.message", "Javadoc line (leave blank when done):");
+java.util.ArrayList com = new ArrayList();
+String line = GUIUtilities.input(view, "macro.write-javadoc-comment", "");
+while (line != null && line.length() != 0) {
+	int space = line.indexOf(" ");
+	if (line.startsWith("author ") || line.startsWith("a "))
+		line = "@author"+line.substring(space, line.length());
+	else if (line.startsWith("docRoot ") || line.startsWith("root "))
+		line = "{@docRoot}"+line.substring(space, line.length());
+	else if (line.startsWith("deprecated ") || line.startsWith("d "))
+		line = "@deprecated"+line.substring(space, line.length());
+	else if (line.startsWith("exception ") || line.startsWith("e "))
+		line = "@exception"+line.substring(space, line.length());
+	else if (line.startsWith("inherit ") || line.startsWith("inheritDoc") || 
+		line.startsWith("i "))
+			line = "{@inheritDoc}"+line.substring(space, line.length());
+	else if (line.startsWith("link ") || line.startsWith("l "))
+		line = "{@link}"+line.substring(space, line.length());
+	else if (line.startsWith("linkplain ") || line.startsWith("lp "))
+		line = "{@linkplain}"+line.substring(space, line.length());
+	else if (line.startsWith("param ") || line.startsWith("p "))
+		line = "@param"+line.substring(space, line.length());
+	else if (line.startsWith("return ") || line.startsWith("r "))
+		line = "@return"+line.substring(space, line.length());
+	else if (line.startsWith("see "))
+		line = "@see"+line.substring(space, line.length());
+	else if (line.startsWith("serial "))
+		line = "@serial"+line.substring(space, line.length());
+	else if (line.startsWith("serialData ") || line.startsWith("sd "))
+		line = "@serialData"+line.substring(space, line.length());
+	else if (line.startsWith("serialField ") || line.startsWith("sf "))
+		line = "@serialField"+line.substring(space, line.length());
+	else if (line.startsWith("since ") || line.startsWith("s "))
+		line = "@since"+line.substring(space, line.length());
+	else if (line.startsWith("throws ") || line.startsWith("t "))
+		line = "@throws"+line.substring(space, line.length());
+	else if (line.startsWith("value "))
+		line = "@value"+line.substring(space, line.length());
+	else if (line.startsWith("version ") || line.startsWith("v "))
+		line = "@version"+line.substring(space, line.length());
+	com.add(line);
+	line = GUIUtilities.input(view, "macro.write-javadoc-comment", "");
+}
+if (com.size() > 0) {
+	int caret, indent;
+	for (caret = textArea.getCaretLine(); true; caret--) {
+		if (caret<0) break;
+		String buffer_line = buffer.getLineText(caret);
+		if (buffer_line.length() == 0) continue;
+		indent = 0;
+		while (buffer_line.length()>0 && buffer_line.charAt(0) == '\t') {
+			buffer_line = buffer_line.substring(1, buffer_line.length());
+			indent++;
+		}
+		if (buffer_line.startsWith("public ") || buffer_line.startsWith("private ")
+		|| buffer_line.startsWith("protected ")) {
+			caret--;
+			break;
+		}
+	}
+	if (caret>=0) {
+		boolean insertNew = false;
+		if (buffer.getLineText(caret).replaceAll("\t", "").length() != 0)
+			insertNew = true;
+		else
+			indent = buffer.getLineText(caret).length();
+		caret = textArea.getLineEndOffset(caret)-1;
+		//textArea.moveCaretPosition(caret);
+		String white = ""; // "\t" * indent
+		for (int i = 0; i<indent; i++) {
+			white += "\t";
+		}
+		if (insertNew) {
+			buffer.insert(caret, "\n");
+			caret++;
+			buffer.insert(caret, white);
+			caret += white.length();
+		}
+		buffer.insert(caret, "/**\n");
+		caret += 4; // "/**\n".length()
+		String front = white+" * ";
+		for (int i = 0; i<com.size(); i++) {
+			String str = (String) com.get(i);
+			buffer.insert(caret, front+str+"\n");
+			caret += (front+str+"\n").length();
+		}
+		buffer.insert(caret, white+" */");
+		caret += white.length()+2;
+	}
+}
+

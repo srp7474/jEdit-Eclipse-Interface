@@ -1,0 +1,51 @@
+
+/*
+ * Duplicate_Selection_Line.bsh - a BeanShell macro script for the
+ * jEdit text editor - duplicates the cursor line or current selection if has it.
+ * by Sergey Kojin, sergey dot kojin at gmail dot com
+ *
+ * duplicate the cursor line code copied from buildin macro Duplicate_Line.bsh 
+ * of  Francesc Roses froses@menta.net
+ * 
+ * no multiple selection supported
+ * this macro behavior is like IntelliJ IDEA Ctlr+D feature  
+ *
+ *
+ * Checked for jEdit 4.3.pre3
+ */
+
+
+void duplicateSelectionLine()
+{
+    if(buffer.isReadOnly()){         
+        Macros.error(view, "This file is read only.");
+        return;
+    }
+    if( textArea.getSelectionCount() > 0 ){
+		sel = textArea.getSelection(0);
+		offset = sel.getStart();
+		if( textArea.getCaretPosition() == offset ){ //forse caret pos to end of selection
+			textArea.setCaretPosition( sel.getEnd() );
+			textArea.resizeSelection(offset, sel.getEnd(), 0, false);
+		}
+		text = textArea.getSelectedText( sel );
+		buffer.insert(offset, text);
+    } else { // just duplicate current line
+		line = textArea.getCaretLine();
+		offset = textArea.getLineEndOffset(line);
+		// handle last line differently
+		if(line == textArea.getLineCount() - 1){
+			text = "\n" + textArea.getLineText(line);
+			--offset;
+		}
+		else {
+			text = textArea.getLineText(line) + "\n";
+		}
+		buffer.insert(offset, text);
+		textArea.goToNextLine(false);
+	}
+}
+
+duplicateSelectionLine();
+
+

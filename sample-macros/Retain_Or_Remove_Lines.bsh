@@ -1,0 +1,164 @@
+
+/**
+retainLines.bsh - a BeanShell macro for the jEdit text editor that 
+retain or remove lines in buffer that can find match with provided
+regular expression.
+
+The ui mirrors the "add prefix and suffix" macro by John Gellene
+
+Copyright (C)  2004 Jia Zhiming jiazhimi@yahoo.com.cn
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+*/
+
+import gnu.regexp.*;
+import javax.swing.border.*;
+	
+void regexpDialog(View view)
+{
+	this.view = view;
+
+    title = "Set Regular Expression";
+    dialog = new JDialog(view, title, false);
+    content = new JPanel(new BorderLayout());
+    content.setBorder(new EmptyBorder(12, 12, 12, 12));
+    dialog.setContentPane(content);
+
+    fieldPanel = new JPanel(new GridLayout(3, 1, 0, 6));
+    
+    regexpField = new HistoryTextField("Regexp");
+    regexpLabel = new JLabel("Regular Expression to use:");
+    
+    fieldPanel.add(regexpLabel);
+    fieldPanel.add(regexpField);
+
+    content.add(fieldPanel, "Center");
+
+    buttonPanel = new JPanel();
+    buttonPanel.setLayout(new BoxLayout(buttonPanel,BoxLayout.X_AXIS));
+    buttonPanel.setBorder(new EmptyBorder(12, 50, 0, 50));
+    buttonPanel.add(Box.createGlue());
+    
+    JButton retain = new JButton("Retain");
+    JButton remove = new JButton("Remove");
+
+    retain.setPreferredSize(remove.getPreferredSize());
+    dialog.getRootPane().setDefaultButton(retain);
+    buttonPanel.add(retain);
+    buttonPanel.add(Box.createHorizontalStrut(6));
+    buttonPanel.add(remove);
+    buttonPanel.add(Box.createGlue());
+    content.add(buttonPanel, "South");
+
+    retain.addActionListener(this);
+    remove.addActionListener(this);
+    regexpField.addActionListener(this);
+
+    dialog.pack();
+    dialog.setLocationRelativeTo(view);
+    dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+    dialog.setVisible(true);
+
+    void actionPerformed(e)
+    {
+        if(e.getSource() == retain)
+        {
+            processText(true);
+        }
+        else if (e.getSource() == remove)
+        {
+	        processText(false);
+        }
+        dialog.dispose();
+    }
+
+    void processText(boolean retain)
+    {
+	    StringBuffer sbf = new StringBuffer();	
+	    
+        String regexp = regexpField.getText();  
+          
+        regexpField.addCurrentToHistory();
+        
+		RE re = null;
+		
+		try {
+			re = new RE(regexp);
+		}
+		catch (REException e)
+		{
+			Macros.error( view, "Regular expression is invalid" );
+			return;
+		}
+        
+        int endL = textArea.getLineCount();
+        
+        int[] lines = textArea.getSelectedLines();
+        
+        if (lines == null || lines.length <= 1)
+        {
+			for (int i = 0; i < endL; i++)
+			{
+			    inLine = textArea.getLineText(i).trim();
+			    REMatch match = re.getMatch(inLine);
+			    
+			    if (retain)
+			    {
+				    if (match != null)
+				    {
+					    sbf.append(inLine);
+					    sbf.append("\n");
+				    }
+			    }
+			    else
+			    {
+				    if (match == null)
+				    {
+					    sbf.append(inLine);
+					    sbf.append("\n");
+				    }					    
+				}
+			} 
+        }
+        else
+        {
+			for (int i = 0; i < lines.length; i++)
+			{
+			    inLine = textArea.getLineText(lines[i]).trim();
+			    REMatch match = re.getMatch(inLine);
+			    
+			    if (retain)
+			    {
+				    if (match != null)
+				    {
+					    sbf.append(inLine);
+					    sbf.append("\n");
+				    }
+			    }
+			    else
+			    {
+				    if (match == null)
+				    {
+					    sbf.append(inLine);
+					    sbf.append("\n");
+				    }					    
+				}
+			}   
+	    }
+
+	    textArea.setText(sbf.toString());
+    }
+}
+
+if( buffer.isReadOnly() )
+	Macros.error( view, "Buffer is read-only." );
+else
+	regexpDialog(view);

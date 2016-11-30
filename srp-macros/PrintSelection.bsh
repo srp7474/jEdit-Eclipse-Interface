@@ -1,0 +1,26 @@
+/* This macro cuts the selected text to a the clipboard
+ * or if there is no selection, the current caret line
+ *
+ * When the whole line is selected the caret is also moved to column 1 so a PASTE
+ * will properly align the inserted text.
+ */
+
+void printSelection() {
+ 	/*if (buffer.getLength() == 0) return;
+  if (textArea.getSelectionCount() == 0) {
+    	start = textArea.getLineStartOffset(textArea.getCaretLine());
+	  stop = textArea.getLineEndOffset(textArea.getCaretLine());
+	  textArea.setSelection(new Selection.Range(start,stop));
+	  Registers.cut(textArea,'$');
+  } else {
+    Registers.cut(textArea,'$');
+  }*/
+  Registers.copy(textArea,'$');
+  Buffer newBuffer = jEdit.newFile(view);
+  Registers.paste(textArea,'$',false);
+  BufferPrinter1_4.print(view,newBuffer,false);
+  jEdit._closeBuffer(view,newBuffer);
+}
+
+// main
+printSelection();

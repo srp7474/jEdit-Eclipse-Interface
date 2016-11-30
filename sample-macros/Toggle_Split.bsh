@@ -1,0 +1,65 @@
+
+/*
+ * Toggle_split.bsh v0.5 - a BeanShell macro script for the
+ * jEdit text editor - Switches the main split pane between two open views, splits
+ * the pane if it's not already splitted
+ * 
+ * Copyright (C) 2004 Claudio Vicari
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with the jEdit program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ *
+ * Checked for jEdit 4.2 API
+ *
+ */
+
+Component getFirstTextArea( JSplitPane pane, boolean direction ) {
+	Component selected;
+	if( direction ) {
+		selected = pane.getBottomComponent();
+		if( selected.getWidth() == 0 || selected.getHeight() == 0 ) {
+			selected = pane.getTopComponent();
+		} //end if
+	} else {
+		selected = pane.getTopComponent();
+		if( selected.getWidth() == 0 || selected.getHeight() == 0 ) {
+			selected = pane.getBottomComponent();
+		} //end if
+	} //end if/else
+	if( selected instanceof EditPane )
+		return selected;
+	else
+		return getFirstTextArea( selected, false );
+} //end function
+
+if( view.getSplitPane() != null ) {
+	JSplitPane splitPane = view.getSplitPane();
+	int minimum = splitPane.getMinimumDividerLocation();
+	int maximum = splitPane.getMaximumDividerLocation();
+	double actual_position = (double)splitPane.getDividerLocation();
+	actual_position = (actual_position-minimum) / ( maximum - minimum );
+
+	if( actual_position > 0.1 ) {
+		splitPane.setDividerLocation( 0.1 );
+		getFirstTextArea( splitPane, true ).focusOnTextArea();
+	} else {
+		splitPane.setDividerLocation( 0.9 );
+		getFirstTextArea( splitPane, false ).focusOnTextArea();
+	} //end if/else
+} else {
+	view.splitHorizontally();
+}
+
+

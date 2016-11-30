@@ -1,0 +1,611 @@
+
+/**
+* Block_fill.bsh - a BeanShell macro for the jEdit text editor
+ * that fills a block selection with text or numbering.
+ *
+  * :folding=indent:collapseFolds=1:
+ *
+ * 25.01.2008  1.0  Robert Schwenn
+ * 02.05.2008  1.1  Robert Schwenn  Bugfix: wrong startvalue if increment <> 1
+ *
+ * Differences to the similar action of TextTools Plugin:
+ * - No choice to overwrite or not the selection. Instead, the behavior
+ *   of inserting is similar to typing it manually:
+ *   The text (or number) is inserted with it's full length and replaces
+ *   just the selected characters. When numbering, the longest inserted
+ *   number defines the length of inserted text.
+ * - Improved performance on large selections because of:
+ *   - Removed support for multiple selections
+ *   - Removed support for tab handling
+ * - Dialog: support for default button and cancel via ESCAPE
+ * - Support for localization (dialog and error messages)
+ *
+ * The code base is derived from the TextTools Plugin by Mike Dillon
+ * and John Gellene:  Copyright (C) 1999, 2001 mike dillon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+*/
+
+/*******************************************************************************
+*  Due to performance issues at launch this macro can be splitted into 2 files:
+*   - Block_fill_classes.bsh in jedit's startup directory: contains classes
+*   - Block_fill_launch.bsh: contains only launching code
+*******************************************************************************/
+
+/*******************************************************************************
+* When splitting the file:
+* The following Lines would be Block_fill_classes.bsh
+*******************************************************************************/
+// Imports
+  import javax.swing.border.*;
+//
+
+// Dialog for user input and text insertion function
+class BlockHandlingDialog2 extends JDialog implements DocumentListener, FocusListener {
+  
+  // constructor
+  public BlockHandlingDialog2(View view) {
+    //
+    // inherited constructor ...
+    super(view, MainDialogTitle, true);
+    this.view = view;
+    
+    // Prepare a panel containing the buttons
+      buttonPanel = new JPanel();
+      buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.X_AXIS));
+      buttonPanel.setBorder(new EmptyBorder(10, 0, 5, 0));
+      buttonPanel.add(Box.createGlue());
+      okButton     = new JButton(confirmDialogAction);       // button with an assigned action
+      cancelButton = new JButton(cancelDialogAction);        // button with an assigned action
+      okButton.setPreferredSize(cancelButton.getPreferredSize());
+      buttonPanel.add(okButton);
+      buttonPanel.add(Box.createHorizontalStrut(6));
+      buttonPanel.add(cancelButton);
+      buttonPanel.add(Box.createGlue());
+    
+    // Prepare a panel containing HistoryTextField
+      fieldPanel     = new JPanel(new GridLayout(2, 1, 2, 0));
+      insertLabel    = new JLabel(insertLabelText);
+      insertField    = new HistoryTextField("macro.rs.Block-fill");
+      
+      fieldPanel.add(insertLabel);
+      fieldPanel.add(insertField);
+      
+    // Prepare a panel containing input components for numbering
+      numberingPanel = new JPanel(new GridBagLayout());
+      Insets ins     = new Insets(2,2,2,2);
+      
+      incrementField = new JTextField("1", 3);
+      incrementLabel = new JLabel(incrementLabelText);
+      leadingZerosCheckBox = new JCheckBox(leadingZerosCheckBoxText, false);
+      incrementField.setEnabled(false);
+      incrementLabel.setEnabled(false);
+      leadingZerosCheckBox.setEnabled(false);
+      
+      //help: GridBagConstraints(int gridx, int gridy, int gridwidth, int gridheight, double weightx, double weighty, int anchor, int fill, Insets insets, int ipadx, int ipady) 
+      numberingPanel.setBorder(BorderFactory.createCompoundBorder(
+                               BorderFactory.createTitledBorder(" " + numberingPanelBorderTitle + " "), 
+                               BorderFactory.createEmptyBorder(1,1,1,1)));
+      numberingPanel.add(incrementLabel,                new GridBagConstraints(1, 1, 2, 1, 1.0, 1.0, GridBagConstraints.EAST, GridBagConstraints.NONE, ins, 0, 0));
+      numberingPanel.add(incrementField,                new GridBagConstraints(3, 1, 1, 1, 1.0, 1.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, ins, 0, 0));
+      numberingPanel.add(Box.createHorizontalStrut(20), new GridBagConstraints(4, 1, 1, 1, 1.0, 1.0, GridBagConstraints.WEST, GridBagConstraints.NONE, ins, 0, 0));
+      numberingPanel.add(leadingZerosCheckBox,          new GridBagConstraints(5, 1, 2, 1, 1.0, 1.0, GridBagConstraints.EAST, GridBagConstraints.NONE, ins, 0, 0));
+      
+    // Add prepared panels to the dialog's content pane
+      Container content = getContentPane();
+      content.setLayout(new BorderLayout(2,11));
+      content.setBorder(new EmptyBorder(6, 6, 6, 6));
+      
+      content.add(fieldPanel,     "North");
+      content.add(numberingPanel, "Center");
+      content.add(buttonPanel,    "South");
+    
+    //
+    // Input handling
+      //
+      // OK- and CANCEL-buttons:
+      // - Actions are already bound via constructor
+      // - setting OK as the default button. This means: pressing ENTER virtually anywhere is like pressing OK-button
+      this.getRootPane().setDefaultButton(okButton);
+      
+      // HistoryTextField consumes the ENTER-Key, when focused. But it should not, that's why:
+      insertField.addActionListener(confirmDialogAction);
+      
+      // Closing dialog when pressing ESCAPE anywhere in the dialog:
+      final String CancelActionName = cancelDialogAction.getValue(CancelDialogAction.NAME);
+      this.getRootPane().getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), CancelActionName);
+      this.getRootPane().getActionMap().put(CancelActionName, cancelDialogAction);
+      
+      // Listen to content changes of the textfields
+      insertField.getDocument().addDocumentListener(this);
+      incrementField.getDocument().addDocumentListener(this);
+      
+      // Listen to focus changes of the textfields
+      insertField.addFocusListener(this);
+      incrementField.addFocusListener(this);
+    //
+    // Start Dialog
+      // locate the dialog in the center of the editing pane and make it visible
+      this.pack();
+      this.setLocationRelativeTo(view);
+      this.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+      this.setVisible(true);
+  }
+  
+  // What to do when the dialog has been confirmed.
+  public void DialogConfirmed() {
+    // go now ...
+    String Message;
+    
+    if (isDialogOk()) {
+      insertField.addCurrentToHistory();
+      
+      // Debugging start parameters:
+        //if (increment) {
+        //  Message = "Start " + numberingPanelBorderTitle + ":\n Start = " + insertValue.toString() + "\n "
+        //                     + incrementLabelText + " = " + incrementValue.toString() + "\n "
+        //                     + leadingZerosCheckBoxText + " = " + leadingZeros.toString() + ".";
+        //} else {
+        //  Message = "Start:  Text = " + insertText;
+        //}
+        //JOptionPane.showMessageDialog(this.view, Message, "Start", JOptionPane.ERROR_MESSAGE);
+      
+      //
+      // Start working
+      doBlockAction2(view, incrementValue, insertValue, insertText, increment, leadingZeros);
+      dispose();
+    }
+  }
+  
+  // Helper: Check if text can be parsed as integer
+  private boolean isInteger(String text) {
+    try {
+      int intValue = Integer.parseInt(text);
+    } catch (NumberFormatException e) {
+      return false;
+    }
+    return true;
+  }
+  
+  // Check if user input is consistent.
+  private boolean isDialogOk() {
+    // init user parameters
+    boolean trace  = false;
+    
+    insertValue    = 0;
+    increment      = false;
+    incrementValue = 0;
+    leadingZeros   = leadingZerosCheckBox.isSelected();
+    
+    JTextField errorField = null;
+    JLabel errorLabel     = null;
+    
+    /*********************************************************
+    * evaluate parameters
+    *********************************************************/
+    try {
+      // check inserted text
+      insertText = insertField.getText();
+      errorField = insertField;
+      errorLabel = insertLabel;
+      if (insertText.length() == 0 ) {
+        throw new NumberFormatException();
+        
+      } else {
+        if (isInteger(insertText)) {
+          if (incrementField.getText().length() > 0) {
+            errorField = incrementField;
+            errorLabel = incrementLabel;
+            incrementValue = Integer.parseInt(incrementField.getText());
+            increment = true;
+            insertValue = Integer.parseInt(insertText);
+          }
+        }
+      }
+      
+    } catch (NumberFormatException e) {
+      //
+      JOptionPane.showMessageDialog(this.view,
+        ErrorWrongInputDialogLabel + " '" + errorField.getText() + "'", ErrorWrongInputDialogTitle + " " + errorLabel.getText(),
+        JOptionPane.ERROR_MESSAGE);
+      errorField.requestFocus();
+      errorField.selectAll();
+      return false;
+    }
+    
+    // only if "try" didn't throw an exception:
+    return true;
+  }
+  
+  // Reactions on changes in the textfields (called from Eventhandlers)
+  private void TextfieldChanged(DocumentEvent e) {
+    // One of the textfields has fired an DocumentEvent (insertUpdate or removeUpdate)
+    // => setting visible properties of other components.
+    String SourceFieldName;
+    String inputText;
+    javax.swing.text.PlainDocument doc = e.getDocument();
+    
+    if (doc == insertField.getDocument()) {
+      SourceFieldName = "insertField";
+      inputText = insertField.getText();
+      if (isInteger(inputText)) {
+        incrementLabel.setEnabled(true);
+        incrementField.setEnabled(true);
+        if (isInteger(incrementField.getText())) leadingZerosCheckBox.setEnabled(true); else leadingZerosCheckBox.setEnabled(false);
+      } else {
+        incrementField.setEnabled(false);
+        incrementLabel.setEnabled(false);
+        leadingZerosCheckBox.setEnabled(false);
+      }
+      
+    } else if (doc == incrementField.getDocument()) {
+      SourceFieldName = "incrementField";
+      if (isInteger(incrementField.getText())) leadingZerosCheckBox.setEnabled(true); else leadingZerosCheckBox.setEnabled(false);
+    }
+    //Macros.message(view, "TextfieldChanged(): '" + SourceFieldName + "'");
+  }
+  
+  // Eventhandler for keeping the dialog's components consistent for the user
+    //
+    // DocumentListener for textfields
+    public void insertUpdate(DocumentEvent e) { TextfieldChanged(e); }
+    public void removeUpdate(DocumentEvent e) { TextfieldChanged(e); }
+    public void changedUpdate(DocumentEvent e) { }
+    
+    // FocusListener for textfields
+    public void focusGained(FocusEvent e) { e.getSource().selectAll(); }
+    public void focusLost(FocusEvent e) { }
+  //
+  
+  
+  // declarations:
+  // Protected members
+    View  view;
+    JPanel fieldPanel;
+    JPanel numberingPanel;
+    JPanel buttonPanel;
+    
+    // dialog fields:
+    // - insertField:           TextField for text to be inserted
+    // - incrementField:        TextField for increment value
+    // - leadingZerosCheckBox:  toggle leading zeros/blanks
+    // - okButton:              start execution
+    // - cancelButton:          discard dialog
+    HistoryTextField  insertField;
+    JTextField        incrementField;
+    JLabel            insertLabel;
+    JLabel            incrementLabel;
+    JCheckBox         leadingZerosCheckBox;
+    
+    // Dialog Labels
+    final static String MainDialogTitle            = jEdit.getProperty("macro.rs.Block-fill.MainDialog.title",            "Block fill / number");
+    final static String numberingPanelBorderTitle  = jEdit.getProperty("macro.rs.Block-fill.numberingPanelBorder.title",  "Numbering");
+    final static String insertLabelText            = jEdit.getProperty("macro.rs.Block-fill.insertLabelText.label",       "Text or Startnumber:");
+    final static String incrementLabelText         = jEdit.getProperty("macro.rs.Block-fill.incrementLabelText.label",    "Increment");
+    final static String leadingZerosCheckBoxText   = jEdit.getProperty("macro.rs.Block-fill.leadingZerosCheckBox.label",  "leading Zeros");
+    final static String ErrorWrongInputDialogTitle = jEdit.getProperty("macro.rs.Block-fill.ErrorWrongInputDialog.title", "Field:");
+    final static String ErrorWrongInputDialogLabel = jEdit.getProperty("macro.rs.Block-fill.ErrorWrongInputDialog.label", "Wrong input:");
+    
+  // Private members
+    // result from user input
+    private int        incrementValue;
+    private int        insertValue;
+    private String     insertText;
+    private boolean    increment;
+    private boolean    leadingZeros;
+    private JButton    okButton;
+    private JButton    cancelButton;
+    
+  //
+  // Instantiate standard actions
+  private Action confirmDialogAction = new ConfirmDialogAction();
+  private Action cancelDialogAction  = new CancelDialogAction();
+
+}
+
+// Actions
+  /** If the following Action classes would be moved into the Dialog class,
+  *   this beanshell macro could be started only once per jEdit session... */
+  
+  // Action to run the "DialogConfirmed()" method of the dialog,
+  // that contains the component whitch has triggerd the action.
+  class ConfirmDialogAction extends AbstractAction {
+    public ConfirmDialogAction() {
+      // init with standard text for "ok"
+      super(jEdit.getProperty("common.ok"));
+      //putValue(SHORT_DESCRIPTION, "Description");
+      //putValue(MNEMONIC_KEY, mnemonic);
+    }
+    public void actionPerformed(ActionEvent e) {
+      //Macros.message(view, "actionPerformed ('" + this.getClass().getName() + "'):  Command = '" + e.getActionCommand() + "'");
+      e.getSource().getRootPane().getParent().DialogConfirmed();
+    }
+  };
+  
+  // Action to close the window that contains the component which has triggerd the action.
+  class CancelDialogAction extends AbstractAction {
+    public CancelDialogAction() {
+      // init with standard text for "cancel"
+      super(jEdit.getProperty("common.cancel"));
+      //putValue(SHORT_DESCRIPTION, "Description");
+      //putValue(MNEMONIC_KEY, mnemonic);
+    }
+    public void actionPerformed(ActionEvent e) {
+      //Macros.message(view, "actionPerformed ('" + this.getClass().getName() + "'):  Command = '" + e.getActionCommand() + "'");
+      e.getSource().getRootPane().getParent().dispose();
+    }
+  };
+
+
+// Text processing
+// If this method were a member of BlockHandlingDialog2, 
+// the time for numbering increases with factor 15 !!!
+private void doBlockAction2(View  view, int incrementValue, int insertValue, String insertText, boolean increment, boolean leadingZeros) {
+  //
+  // Variable declarations
+    private int insertColumn;
+    private int targetLen;
+    
+    private int selStartLineNr;
+    private int selEndLineNr;
+    private int selHight;
+    
+    private String NumberFmt;
+    private String sourceString;
+    
+    private boolean ok                     = true;
+    private boolean createSpecialSelection = false;
+    private boolean noSelection            = false;
+    private boolean singleLineSelection    = false;
+    
+    private Integer[] formatArgsInt    = new Integer[1];
+    private String[]  formatArgsString = new String[1];
+    
+  private boolean trace = false;
+  
+  private JEditTextArea textArea = view.getTextArea();
+  private Buffer buffer          = view.getBuffer();  //JEditBuffer seems not to exist in jedit 4.2: that's why "buffer"
+  
+  /*********************************************************
+  * evaluate and check selection
+  *********************************************************/
+  private Selection[] selection = textArea.getSelection();      // 0 = no selection
+  
+  if (selection.length != 0) {
+    selStartLineNr = selection[0].getStartLine();
+    selEndLineNr   = selection[0].getEndLine();
+    selHight       = selEndLineNr - selStartLineNr +1;  // textArea.getSelectedLines().length is buggy: if caret in column 0 => less 1!
+  }
+  
+  // check if all is ok to go
+  if (!textArea.isEditable()) {
+    ok = false;
+    JOptionPane.showMessageDialog(this.view, ErrorNotEditableDialogMessage, ErrorNotEditableDialogTitle, JOptionPane.ERROR_MESSAGE);
+    
+  } else if (selection.length > 1) {
+    ok = false;
+    JOptionPane.showMessageDialog(this.view, ErrorMultipleSelectionDialogMessage, ErrorMultipleSelectionDialogTitle, JOptionPane.ERROR_MESSAGE);
+    
+  } else if (selection.length == 1) {
+    if (selHight == 1) {
+      // selection is on one single line only
+      // selection type doesn't matter in this case: selection is imagined as a block
+      // starting at the real selection to bottom of buffer.
+      createSpecialSelection = true;
+      singleLineSelection = true;
+    } else if (selection[0] instanceof Selection.Range) {
+      ok = false;
+      JOptionPane.showMessageDialog(this.view, ErrorNoRectSelectionDialogMessage, ErrorNoRectSelectionDialogTitle, JOptionPane.ERROR_MESSAGE);
+    }
+  } else {
+    // no selection
+    // this is ok: selection is imagined as a column cursor starting at the caret to bottom of buffer.
+    createSpecialSelection = true;
+    noSelection = true;
+  }
+  
+  /*********************************************************
+  * start condition is ok: let's begin
+  *********************************************************/
+  if (ok) {
+    /********************************************************************
+    * create selection in special cases (only one line or no selection):
+    * extend current selection or cursor until bottom of buffer
+    *********************************************************************/
+    if (createSpecialSelection) {
+      // local variable declarations
+        private int selStartColumn;
+        private int selWidth;
+        private int lastLineNr;
+        private int lastLineLength;
+        private int selStartOffset;
+        private int selEndOffset;
+        private int insertSpacesPos;
+      
+      // calculate parameters for new selection
+        if (noSelection) {
+          selStartOffset = textArea.getCaretPosition();
+          selStartColumn = selStartOffset - textArea.getLineStartOffset(textArea.getCaretLine());
+          selWidth       = 0;
+        } else if (singleLineSelection) {
+          selStartOffset = selection[0].getStart();
+          selStartColumn = selStartOffset - textArea.getLineStartOffset(selStartLineNr);
+          selWidth       = selection[0].getEnd() - selection[0].getStart();
+        }
+        lastLineNr     = textArea.getLineCount() - 1;
+        lastLineLength = textArea.getLineLength(lastLineNr);
+        selEndLineNr   = lastLineNr;  if (lastLineLength == 0) selEndLineNr--;
+        selEndOffset   = textArea.getLineStartOffset(selEndLineNr) + selStartColumn + selWidth;
+      
+      // if new selection should end in virtual space: add real spaces.
+        if (selEndOffset > textArea.getBufferLength()) {
+          insertSpacesPos = textArea.getBufferLength();
+          if (lastLineLength == 0) insertSpacesPos--;
+          formatArgsString[0] = " ";
+          buffer.insert(insertSpacesPos, String.format("%" + Integer.valueOf(selEndOffset - insertSpacesPos).toString() + "s", formatArgsString));
+        }
+      
+      // set rectangular selection mode for consistence after the macro's termination
+        textArea.selectNone();
+        textArea.setRectangularSelectionEnabled(true);
+      
+      // if possible, create and evaluate the new selection, else use caret position as virtual selection
+        if (selEndOffset > selStartOffset) {
+          // selection could be set successfully
+          textArea.setSelection(new Selection.Rect(selStartOffset, selEndOffset));
+          
+          // get the new selection parameters
+          selection = textArea.getSelection();
+          
+          if (selection.length != 0) {
+            selStartLineNr = selection[0].getStartLine();
+            selEndLineNr   = selection[0].getEndLine();
+            selHight       = selEndLineNr - selStartLineNr +1;
+          } else {
+            // this should not happen, but ...
+            selStartLineNr = textArea.getCaretLine();
+            selEndLineNr   = selStartLineNr;
+            selHight       = 1;
+          }
+          
+        } else {
+          // simulate virtual evaluated selection equals to caret
+          selStartLineNr = textArea.getCaretLine();
+          selEndLineNr   = selStartLineNr;
+          selHight       = 1;
+        }
+      // get the column to insert text at every line.
+      insertColumn = selStartColumn;
+      
+    } else {
+      // The normal case: there is a rectangular selection created by the user.
+      // get the column to insert text at every line.
+      insertColumn = selection[0].getStartColumn(buffer);
+    }
+      
+    /*********************************************************
+    * prepare numbering and text insertion
+    *********************************************************/
+    // remove selected Text
+    textArea.setSelectedText("");
+    
+    // Note: from now on, we don't need the selection
+    textArea.selectNone();
+    buffer.beginCompoundEdit();
+    
+    // preparations for insert strings
+    if (increment) {
+      // numbering
+      
+      // get start value
+        formatArgsInt[0] = insertValue - incrementValue;
+      
+      // calculate target length (length of longest number to insert)
+        int firstNumber = insertValue;
+        int lastNumber  = firstNumber + (incrementValue * (selHight - 1));
+        if (lastNumber.toString().length() >= firstNumber.toString().length()) {
+          targetLen = lastNumber.toString().length();
+        } else {
+          targetLen = firstNumber.toString().length();
+        }
+      
+      // prepare format string
+        if (leadingZeros) {
+          NumberFmt = "%0" + targetLen.toString() + "d";
+        } else {
+          NumberFmt = "%" + targetLen.toString() + "d";
+        }
+      
+    } else {
+      // text insert
+      sourceString = insertText;
+      targetLen    = sourceString.length();
+    }
+    
+    
+    /*********************************************************
+    * process every single line of the selection
+    *********************************************************/
+    for (int currentLine = selStartLineNr; currentLine <= selEndLineNr; currentLine++) {
+      // create numbering string to insert
+      if (increment) {
+        formatArgsInt[0] += incrementValue;
+        sourceString      = String.format(NumberFmt, formatArgsInt);
+      }
+      
+      // insert text or number
+      buffer.insertAtColumn(currentLine, insertColumn, sourceString);
+    }
+    
+    
+    /*********************************************************
+    * set selection to changed chunk
+    *********************************************************/
+    textArea.setSelection(new Selection.Rect(textArea.getLineStartOffset(selStartLineNr) + insertColumn,
+                                             textArea.getLineStartOffset(selEndLineNr)   + insertColumn + targetLen));
+    
+    buffer.endCompoundEdit();
+  }
+}
+/** End of Block_fill_classes.bsh  *********************************************/
+
+
+
+/*******************************************************************************
+* When splitting the file:
+* The following Lines would be Block_fill_launch.bsh
+*******************************************************************************/
+
+private void StartDialog(View view, JEditTextArea textArea) {
+  //
+  private boolean ok = true;
+  
+  final static String ErrorNotEditableDialogTitle         = jEdit.getProperty("macro.rs.Block-fill.NotEditable.title",         "Not Editable");
+  final static String ErrorNotEditableDialogMessage       = jEdit.getProperty("macro.rs.Block-fill.NotEditable.message",       "Buffer can't be edited!");
+  
+  final static String ErrorNoRectSelectionDialogTitle     = jEdit.getProperty("macro.rs.Block-fill.no-rect-selection.title",   "Wrong selection type");
+  final static String ErrorNoRectSelectionDialogMessage   = jEdit.getProperty("macro.rs.Block-fill.no-rect-selection.message", "Please use RECTANGULAR selection.");
+  
+  final static String ErrorMultipleSelectionDialogTitle   = jEdit.getProperty("macro.rs.Block-fill.MultipleSelection.title",   "Wrong selection number");
+  final static String ErrorMultipleSelectionDialogMessage = jEdit.getProperty("macro.rs.Block-fill.MultipleSelection.message", "This function requieres exactly ONE selection!");
+  
+  
+  Selection[] selection = textArea.getSelection();
+  
+  if (!textArea.isEditable()) {
+    ok = false;
+    JOptionPane.showMessageDialog(this.view, ErrorNotEditableDialogMessage, ErrorNotEditableDialogTitle, JOptionPane.ERROR_MESSAGE);
+    
+  } else if (selection.length > 1) {
+    ok = false;
+    JOptionPane.showMessageDialog(this.view, ErrorMultipleSelectionDialogMessage, ErrorMultipleSelectionDialogTitle, JOptionPane.ERROR_MESSAGE);
+    
+  } else if (selection.length == 1) {
+    if (textArea.getSelectedLines().length == 1) {
+      // selection is on one single line only
+      // selection type doesn't matter in this case: selection is imagined as a block
+      // starting at the real selection to bottom of buffer.
+    } else if (selection[0] instanceof Selection.Range) {
+      // selection consists of more than one line, but is not of rectangular type
+      ok = false;
+      JOptionPane.showMessageDialog(this.view, ErrorNoRectSelectionDialogMessage, ErrorNoRectSelectionDialogTitle, JOptionPane.ERROR_MESSAGE);
+    }
+  } else {
+    // no selection
+    // this is ok: selection is imagined as a column cursor starting at the caret to bottom of buffer.
+  }
+  
+  if (ok) new BlockHandlingDialog2(view);
+}
+
+// go on now ;-)
+StartDialog(view, textArea);
+
