@@ -8,10 +8,11 @@ This repo contains the tools (windows based) that are used to build an interface
 
 The rational for this is as follows:
   * Eclipse is the best ever compiler with fantastic dependency checking and incremental compile facilities. jEdit will never catch up.
-  * jEdit is a very flexible editor built by programmers for programmers. I ahe already added several customizations such as hotJump that have save plenty of time.
+  * jEdit is a very flexible editor built by programmers for programmers. I have
+already added several customizations such as hotJump that have saved plenty of time.
 Its hypersearch capability is the best find interface I have ever used, especially for program code files. Eclipse will never catch up.
   * I use an option in jEdit that does a save on task switch. (It is added as a bean shell interface in the configuration).
-  * I task switch to Eclipse, do a compile, task switch to my PowerShell window and run the test (using the up arror).
+  * I task switch to Eclipse, do a compile, task switch to my PowerShell window and run the test (using the up arrow).
   * A few seconds and I have done a code change, compile and test (The systems I write are too complex to use Debug, I use log statements).
   * I realized there had to be a better way to get from the compile errors back to the line to be fixed in the editor than using the goto line and typing the line number.
 
@@ -21,7 +22,7 @@ It compresses the compile error message(s) into a single package and broadcasts 
 
 The other part, the jEdit plugin called UDPErrors listens for the broadcast and populates the Error window provided by the ErrorList plugin.
 
-Besides being pleasant to use, my productivity since implementing this interface has measurably increased.
+Besides being pleasant to use, my productivity since implementing this interface has dramtically increased.
 
 The result is that I am able to benefit from the best-of-breed qualities of two components required for speedy program development.
 
