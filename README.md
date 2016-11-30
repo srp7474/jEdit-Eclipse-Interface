@@ -27,7 +27,7 @@ The result is that I am able to benefit from the best-of-breed qualities of two 
 
 ####Possible Improvements####
 Time constraints prevent me from doing work to tidy up this package.
-I am willing to assist anybody willing to step up to the plate and tie a bow around it. I can be reached at [!alt text](./public.email.png "email-address")
+I am willing to assist anybody willing to step up to the plate and tie a bow around it. I can be reached at public@rexcel.com
 
 
 ####Other Tools in ths Directory####
