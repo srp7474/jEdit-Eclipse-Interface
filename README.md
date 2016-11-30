@@ -22,7 +22,7 @@ It compresses the compile error message(s) into a single package and broadcasts 
 
 The other part, the jEdit plugin called UDPErrors listens for the broadcast and populates the Error window provided by the ErrorList plugin.
 
-Besides being pleasant to use, my productivity since implementing this interface has dramtically increased.
+Besides being pleasant to use, my productivity since implementing this interface has dramatically increased.
 
 The result is that I am able to benefit from the best-of-breed qualities of two components required for speedy program development.
 
