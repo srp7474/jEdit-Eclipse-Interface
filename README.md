@@ -1,3 +1,4 @@
+
 jEdit/Eclipse Interface Tools
 =============================
 
@@ -6,13 +7,13 @@ jEdit/Eclipse Interface Tools
 This repo contains the tools (windows based) that are used to build an interface between jEdit and Eclipse.
 
 The rational for this is as follows:
-..* Eclipse is the best ever compiler with fantastic dependency checking and incremental compile facilities. jEdit will never catch up.
-..* jEdit is a very flexible editor built by programmers for programmers. I ahe already added several customizations such as hotJump that have save plenty of time.
+  * Eclipse is the best ever compiler with fantastic dependency checking and incremental compile facilities. jEdit will never catch up.
+  * jEdit is a very flexible editor built by programmers for programmers. I ahe already added several customizations such as hotJump that have save plenty of time.
 Its hypersearch capability is the best find interface I have ever used, especially for program code files. Eclipse will never catch up.
-..* I use an option in jEdit that does a save on task switch. (It is added as a bean shell interface in the configuration).
-..* I task switch to Eclipse, do a compile, task switch to my PowerShell window and run the test (using the up arror).
-..* A few seconds and I have done a code change, compile and test (The systems I write are too complex to use Debug, I use log statements).
-..* I realized there had to be a better way to get from the compile errors back to the line to be fixed in the editor than using the goto line and typing the line number.
+  * I use an option in jEdit that does a save on task switch. (It is added as a bean shell interface in the configuration).
+  * I task switch to Eclipse, do a compile, task switch to my PowerShell window and run the test (using the up arror).
+  * A few seconds and I have done a code change, compile and test (The systems I write are too complex to use Debug, I use log statements).
+  * I realized there had to be a better way to get from the compile errors back to the line to be fixed in the editor than using the goto line and typing the line number.
 
 ####The Solution####
 Eclipse provides the capability to listen to the compile errors.  The UDPMarkerListener provided in this repo does just that.
@@ -49,9 +50,10 @@ sample-macros       Sample macros used as reference
 srp-macros          srp developed macros
 tools               scripts used to generate above (4NT compatible)
 UDPMarkerListener   Eclipse plugin
+```
 
 #### Instalation Notes ####
 
-..* Drop the plugin folder into the Eclipse plugins folder and restart.  Note that this was developed for Eclipse Luna (4.4)
+  * Drop the plugin folder into the Eclipse plugins folder and restart.  Note that this was developed for Eclipse Luna (4.4)
 
-..* Drop the UDPErrors.jar file into the jEdit jars folder.  This was developed for jEdit5.3
+  * Drop the UDPErrors.jar file into the jEdit jars folder.  This was developed for jEdit5.2
